@@ -323,6 +323,7 @@
 
 <script>
 const gasUrl = 'https://script.google.com/macros/s/AKfycbxUY_YUxCi7n17nUccnmVPbRshzhWesgyePKGOSlQWp-bIOtPaIRuw9KD-tZY9p9LnV7g/exec';
+const READ_TOKEN = 'garageill2024';
 let staffData = JSON.parse(localStorage.getItem('staffData') || '[]');
 let vehicleData = JSON.parse(localStorage.getItem('vehicleData') || '[]');
 
@@ -357,7 +358,7 @@ function switchTab(tab, btn) {
 }
 
 async function gasGet(params) {
-  const url = gasUrl + '?' + new URLSearchParams(params);
+  const url = gasUrl + '?' + new URLSearchParams({ ...params, token: READ_TOKEN });
   const res = await fetch(url);
   return res.json();
 }
