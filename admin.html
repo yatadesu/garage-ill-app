@@ -200,7 +200,7 @@
       border-top: none;
       padding: 10px 14px;
       display: grid;
-      grid-template-columns: 70px 50px 1fr 45px 36px 36px;
+      grid-template-columns: 70px 50px 70px 1fr 45px 36px 36px;
       gap: 6px;
       align-items: center;
       font-size: 13px;
@@ -1058,10 +1058,14 @@ async function loadLogView() {
       logs.forEach(r => {
         const date = r.date.toString().substring(0, 10).replace(/-/g, '/').substring(2);
         const recJson = encodeURIComponent(JSON.stringify(r));
+        const timeDisp = r.startTime && r.endTime
+          ? r.startTime.toString().substring(0,5) + '〜' + r.endTime.toString().substring(0,5)
+          : '';
         html += `
           <div class="log-item">
             <div><div class="log-date">${date}</div><div class="log-staff">${r.staff || ''}</div></div>
             <div style="font-size:11px;color:var(--text2)">${r.category || ''}</div>
+            <div style="font-size:11px;color:var(--text2)">${timeDisp}</div>
             <div class="log-content">${r.content || ''}</div>
             <div class="log-hours">${Math.round((parseFloat(r.hours)||0)*10)/10}h</div>
             <button class="btn-edit" onclick="openEditRecord('${recJson}')" title="編集">✎</button>
