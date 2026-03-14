@@ -929,11 +929,40 @@ function renderCostSummary(filtered) {
     Object.values(byWeekRegular).forEach(weekRegularH => {
       if (weekRegularH > 40) overtimeHours += weekRegularH - 40;
     });
-    const regularHours = Math.round((totalHours - overtimeHours) * 10) / 10;
-    overtimeHours = Math.round(overtimeHours * 10) / 10;
+    // 月60時間超え残業（暦月単位）：残業時間を月ごとに集計
+    const otByMonth = {};
+    Object.entries(byDate).forEach(([dateStr, dayH]) => {
+      const monthKey = dateStr.substring(0, 7);
+      if (!otByMonth[monthKey]) otByMonth[monthKey] = 0;
+      // 1日残業分
+      if (dayH > 8) otByMonth[monthKey] += dayH - 8;
+    });
+    // 週40h超え分も月ごとに振り分け
+    Object.entries(byWeekRegular).forEach(([weekKey, weekRegularH]) => {
+      if (weekRegularH > 40) {
+        const monthKey = weekKey.substring(0, 7);
+        if (!otByMonth[monthKey]) otByMonth[monthKey] = 0;
+        otByMonth[monthKey] += weekRegularH - 40;
+      }
+    });
+    let ot25h = 0, ot50h = 0;
+    Object.values(otByMonth).forEach(monthOtH => {
+      if (monthOtH <= 60) {
+        ot25h += monthOtH;
+      } else {
+        ot25h += 60;
+        ot50h += monthOtH - 60;
+      }
+    });
+    ot25h = Math.round(ot25h * 10) / 10;
+    ot50h = Math.round(ot50h * 10) / 10;
+    const regularHours = Math.round((totalHours - (ot25h + ot50h)) * 10) / 10;
+    overtimeHours = Math.round((ot25h + ot50h) * 10) / 10;
     totalHours = Math.round(totalHours * 10) / 10;
 
-    const overtimePremium = Math.round(overtimeHours * rate * 0.25);
+    const premium25 = Math.round(ot25h * rate * 0.25);
+    const premium50 = Math.round(ot50h * rate * 0.50);
+    const overtimePremium = premium25 + premium50;
     const insuranceRate = insuranceRates[staff] || 0;
     const insuranceCost = insuranceRate > 0
       ? Math.round((totalAmount + overtimePremium) * insuranceRate / 100)
@@ -956,8 +985,12 @@ function renderCostSummary(filtered) {
           <span>¥${totalAmount.toLocaleString()}</span>
         </div>
         <div class="cost-row">
-          <span>残業割増（25%）</span>
-          <span>${overtimePremium > 0 ? '¥' + overtimePremium.toLocaleString() : '—'}</span>
+          <span>残業割増（25%）${ot25h > 0 ? ' ' + ot25h + 'h' : ''}</span>
+          <span>${premium25 > 0 ? '¥' + premium25.toLocaleString() : '—'}</span>
+        </div>
+        <div class="cost-row">
+          <span>残業割増（50%・月60h超）${ot50h > 0 ? ' ' + ot50h + 'h' : ''}</span>
+          <span>${premium50 > 0 ? '¥' + premium50.toLocaleString() : '—'}</span>
         </div>
         <div class="cost-row">
           <span>社会保険料（会社負担${insuranceRate > 0 ? ' ' + insuranceRate + '%' : '・未設定'}）</span>
