@@ -482,14 +482,6 @@
     <button class="btn btn-secondary btn-mt btn-small" onclick="openModal('modal-add-vehicle')">＋ 車両追加</button>
   </div>
 
-  <div class="card">
-    <div class="card-title">パスワード変更</div>
-    <label>新しいパスワード</label>
-    <input type="password" id="new-pw" placeholder="新しいパスワード" inputmode="numeric">
-    <label>確認（もう一度）</label>
-    <input type="password" id="new-pw-confirm" placeholder="もう一度入力" inputmode="numeric">
-    <button class="btn btn-secondary btn-mt" onclick="changePassword()">パスワードを変更</button>
-  </div>
 </div>
 
 <!-- ボトムナビ -->
@@ -598,28 +590,37 @@
 const gasUrl = 'https://script.google.com/macros/s/AKfycbxlf4Q1kC08HUOgFDoVmCYK1mNjMeuLozLdYT-1klsLVqMljiX1bZh6WOIn9cJR-mv83A/exec';
 let staffData = JSON.parse(localStorage.getItem('staffData') || '[]');
 let vehicleData = JSON.parse(localStorage.getItem('vehicleData') || '[]');
-const DEFAULT_PASSWORD = '0000';
+let currentAdminToken = null; // ログイン後にメモリで保持（HTMLには書かない）
 
-function checkPassword() {
-  const saved = localStorage.getItem('adminPassword') || DEFAULT_PASSWORD;
+async function checkPassword() {
   const input = document.getElementById('pw-input').value;
-  if (input === saved) {
-    document.getElementById('pw-screen').style.display = 'none';
-  } else {
-    document.getElementById('pw-error').textContent = 'パスワードが違います';
-    document.getElementById('pw-input').value = '';
+  if (!input) return;
+  const btn = document.querySelector('.pw-btn');
+  btn.textContent = '確認中...';
+  btn.disabled = true;
+  try {
+    const res = await fetch(gasUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'verifyAdmin', password: input })
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      currentAdminToken = input;
+      document.getElementById('pw-screen').style.display = 'none';
+    } else {
+      document.getElementById('pw-error').textContent = 'パスワードが違います';
+      document.getElementById('pw-input').value = '';
+    }
+  } catch (e) {
+    document.getElementById('pw-error').textContent = '通信エラー。電波状況を確認してください';
+  } finally {
+    btn.textContent = 'ログイン';
+    btn.disabled = false;
   }
 }
 
 function changePassword() {
-  const np = document.getElementById('new-pw').value;
-  const nc = document.getElementById('new-pw-confirm').value;
-  if (!np) { showToast('パスワードを入力してください', true); return; }
-  if (np !== nc) { showToast('パスワードが一致しません', true); return; }
-  localStorage.setItem('adminPassword', np);
-  document.getElementById('new-pw').value = '';
-  document.getElementById('new-pw-confirm').value = '';
-  showToast('パスワードを変更しました');
+  showToast('パスワード変更はGASスクリプトエディタで行ってください', true);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -666,6 +667,10 @@ async function gasGet(params) {
 }
 
 async function gasPost(data) {
+  const adminActions = ['deleteRecord', 'updateRecord', 'addVehicle', 'addStaff', 'updateRate'];
+  if (adminActions.includes(data.action) && currentAdminToken) {
+    data = { ...data, adminToken: currentAdminToken };
+  }
   const res = await fetch(gasUrl, { method: 'POST', body: JSON.stringify(data) });
   return res.json();
 }
