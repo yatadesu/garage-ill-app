@@ -343,6 +343,37 @@
       font-size: 14px;
     }
     .empty-state .icon { font-size: 40px; margin-bottom: 8px; }
+
+    /* 作業ログ */
+    .log-vehicle-group { margin-bottom: 16px; }
+    .log-vehicle-header {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .log-vehicle-name { font-size: 15px; font-weight: 700; color: var(--accent); }
+    .log-vehicle-total { font-size: 13px; color: var(--text2); }
+    .log-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      padding: 10px 14px;
+      display: grid;
+      grid-template-columns: 70px 50px 1fr 45px;
+      gap: 6px;
+      align-items: center;
+      font-size: 13px;
+    }
+    .log-item:last-child { border-radius: 0 0 8px 8px; }
+    .log-date { color: var(--text2); font-size: 12px; }
+    .log-staff { font-weight: 600; font-size: 12px; }
+    .log-content { color: var(--text); }
+    .log-category { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .log-hours { text-align: right; font-weight: 700; color: var(--accent); }
   </style>
 </head>
 <body>
@@ -396,14 +427,10 @@
       <input type="number" id="inp-break" value="60" min="0" max="480" placeholder="休憩">
     </div>
 
-    <div class="calc-result">
+    <div class="calc-result" style="grid-template-columns:1fr">
       <div class="calc-item">
-        <label>作業時間</label>
+        <label>作業時間（自動計算）</label>
         <div class="value" id="calc-hours">—</div>
-      </div>
-      <div class="calc-item">
-        <label>金額</label>
-        <div class="value" id="calc-amount">—</div>
       </div>
     </div>
 
@@ -417,7 +444,7 @@
 <!-- ② 集計タブ -->
 <div id="tab-summary" class="tab-content">
   <div class="card">
-    <div class="card-title">期間</div>
+    <div class="card-title">絞り込み</div>
     <div class="period-row">
       <div>
         <label>開始</label>
@@ -428,15 +455,39 @@
         <input type="date" id="filter-to">
       </div>
     </div>
-    <button class="btn btn-secondary" onclick="loadSummary()">集計を更新</button>
+    <label>車両 / 案件</label>
+    <select id="filter-vehicle">
+      <option value="">全車両</option>
+    </select>
+    <label>スタッフ</label>
+    <select id="filter-staff">
+      <option value="">全員</option>
+    </select>
+    <button class="btn btn-secondary btn-mt" onclick="loadSummary()">表示を更新</button>
   </div>
 
-  <div id="vehicle-chips" class="vehicle-filter"></div>
-  <div id="summary-content"><div class="loading">集計タブを開いて更新ボタンを押してください</div></div>
+  <div id="summary-content"><div class="loading">表示を更新ボタンを押してください</div></div>
 </div>
 
-<!-- ③ 管理タブ -->
+<!-- ③ 管理タブ（PIN必須） -->
 <div id="tab-admin" class="tab-content">
+  <!-- 金額集計 -->
+  <div class="card">
+    <div class="card-title">車両別 金額集計</div>
+    <div class="period-row">
+      <div>
+        <label>開始</label>
+        <input type="date" id="admin-filter-from">
+      </div>
+      <div>
+        <label>終了</label>
+        <input type="date" id="admin-filter-to">
+      </div>
+    </div>
+    <button class="btn btn-secondary" onclick="loadAdminSummary()">集計を更新</button>
+    <div id="admin-summary-content" style="margin-top:12px"></div>
+  </div>
+
   <!-- スタッフ管理 -->
   <div class="card">
     <div class="card-title">スタッフ管理</div>
@@ -649,6 +700,14 @@ function renderStaffSelect() {
   staffData.forEach(s => {
     sel.innerHTML += `<option value="${s.name}" data-rate="${s.rate}">${s.name}</option>`;
   });
+  // 集計フィルターも更新
+  const fsel = document.getElementById('filter-staff');
+  if (fsel) {
+    fsel.innerHTML = '<option value="">全員</option>';
+    staffData.forEach(s => {
+      fsel.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+    });
+  }
 }
 
 function renderVehicleSelect() {
@@ -657,6 +716,14 @@ function renderVehicleSelect() {
   vehicleData.forEach(v => {
     sel.innerHTML += `<option value="${v.name}">${v.name}${v.status ? '（' + v.status + '）' : ''}</option>`;
   });
+  // 集計フィルターも更新
+  const fsel = document.getElementById('filter-vehicle');
+  if (fsel) {
+    fsel.innerHTML = '<option value="">全車両</option>';
+    vehicleData.forEach(v => {
+      fsel.innerHTML += `<option value="${v.name}">${v.name}</option>`;
+    });
+  }
 }
 
 // ============================================================
@@ -739,11 +806,13 @@ async function submitRecord() {
 }
 
 // ============================================================
-// 集計
+// 集計（時間・作業ログのみ・金額なし）
 // ============================================================
 async function loadSummary() {
   const from = document.getElementById('filter-from').value;
   const to = document.getElementById('filter-to').value;
+  const vehicleFilter = document.getElementById('filter-vehicle').value;
+  const staffFilter = document.getElementById('filter-staff').value;
 
   document.getElementById('summary-content').innerHTML = '<div class="loading">読込中...</div>';
 
@@ -751,83 +820,65 @@ async function loadSummary() {
     allRecords = await gasGet({ action: 'getRecords' });
     if (!allRecords) return;
 
-    // 期間フィルタ
+    // フィルタ適用
     const filtered = allRecords.filter(r => {
       if (!r.date) return false;
       const d = r.date.toString().substring(0, 10);
-      return (!from || d >= from) && (!to || d <= to);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      if (vehicleFilter && r.vehicle !== vehicleFilter) return false;
+      if (staffFilter && r.staff !== staffFilter) return false;
+      return true;
+    }).sort((a, b) => {
+      const da = a.date.toString().substring(0, 10);
+      const db = b.date.toString().substring(0, 10);
+      return da < db ? 1 : -1;
     });
 
-    renderVehicleChips(filtered);
-    renderSummary(filtered, selectedVehicle);
+    renderLogView(filtered);
   } catch (e) {
     document.getElementById('summary-content').innerHTML = '<div class="loading">取得失敗。URLを確認してください</div>';
   }
 }
 
-function renderVehicleChips(records) {
-  const vehicles = ['all', ...new Set(records.map(r => r.vehicle).filter(Boolean))];
-  const container = document.getElementById('vehicle-chips');
-  container.innerHTML = '';
-  vehicles.forEach(v => {
-    const chip = document.createElement('div');
-    chip.className = 'filter-chip' + (v === selectedVehicle ? ' active' : '');
-    chip.textContent = v === 'all' ? '全車両' : v;
-    chip.onclick = () => {
-      selectedVehicle = v;
-      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      renderSummary(records, v);
-    };
-    container.appendChild(chip);
-  });
-}
-
-function renderSummary(records, vehicleFilter) {
-  const filtered = vehicleFilter === 'all' ? records : records.filter(r => r.vehicle === vehicleFilter);
-
-  if (filtered.length === 0) {
+function renderLogView(records) {
+  if (records.length === 0) {
     document.getElementById('summary-content').innerHTML = `
       <div class="empty-state">
         <div class="icon">📋</div>
-        この期間のデータはありません
+        この条件のデータはありません
       </div>`;
     return;
   }
 
-  // 車両別・スタッフ別に集計
+  // 車両別にグループ化
   const byVehicle = {};
-  filtered.forEach(r => {
-    if (!r.vehicle) return;
-    if (!byVehicle[r.vehicle]) byVehicle[r.vehicle] = {};
-    if (!byVehicle[r.vehicle][r.staff]) byVehicle[r.vehicle][r.staff] = { hours: 0, amount: 0 };
-    byVehicle[r.vehicle][r.staff].hours += parseFloat(r.hours) || 0;
-    byVehicle[r.vehicle][r.staff].amount += parseInt(r.amount) || 0;
+  records.forEach(r => {
+    const v = r.vehicle || '未設定';
+    if (!byVehicle[v]) byVehicle[v] = [];
+    byVehicle[v].push(r);
   });
 
   let html = '';
-  Object.entries(byVehicle).forEach(([vehicle, staffMap]) => {
-    const totalAmount = Object.values(staffMap).reduce((s, v) => s + v.amount, 0);
-    const totalHours = Object.values(staffMap).reduce((s, v) => s + v.hours, 0);
+  Object.entries(byVehicle).forEach(([vehicle, logs]) => {
+    const totalHours = logs.reduce((s, r) => s + (parseFloat(r.hours) || 0), 0);
+    html += `<div class="log-vehicle-group">
+      <div class="log-vehicle-header">
+        <div class="log-vehicle-name">${vehicle}</div>
+        <div class="log-vehicle-total">合計 ${Math.round(totalHours*10)/10}h</div>
+      </div>`;
 
-    html += `
-      <div class="summary-card">
-        <div class="summary-header">
-          <div class="vehicle-name">${vehicle}</div>
-          <div>
-            <div class="total-amount">¥${totalAmount.toLocaleString()}</div>
-            <div style="font-size:11px;color:var(--text2);text-align:right">${Math.round(totalHours*10)/10}h 計</div>
-          </div>
-        </div>`;
-
-    Object.entries(staffMap).forEach(([staff, data]) => {
+    logs.forEach(r => {
+      const date = r.date.toString().substring(0, 10).replace(/-/g, '/').substring(2);
       html += `
-        <div class="staff-row">
+        <div class="log-item">
           <div>
-            <div class="staff-name">${staff}</div>
-            <div class="staff-hours">${Math.round(data.hours*10)/10}h</div>
+            <div class="log-date">${date}</div>
+            <div class="log-staff">${r.staff || ''}</div>
           </div>
-          <div class="staff-amount">¥${data.amount.toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text2)">${r.category || ''}</div>
+          <div class="log-content">${r.content || ''}</div>
+          <div class="log-hours">${Math.round((parseFloat(r.hours)||0)*10)/10}h</div>
         </div>`;
     });
 
@@ -838,9 +889,80 @@ function renderSummary(records, vehicleFilter) {
 }
 
 // ============================================================
+// 管理タブ（PIN必須）- 金額込み集計
+// ============================================================
+async function loadAdminSummary() {
+  const from = document.getElementById('admin-filter-from').value;
+  const to = document.getElementById('admin-filter-to').value;
+  const container = document.getElementById('admin-summary-content');
+  container.innerHTML = '<div class="loading">読込中...</div>';
+
+  try {
+    const records = await gasGet({ action: 'getRecords' });
+    if (!records) return;
+
+    const filtered = records.filter(r => {
+      if (!r.date) return false;
+      const d = r.date.toString().substring(0, 10);
+      return (!from || d >= from) && (!to || d <= to);
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="loading">データなし</div>';
+      return;
+    }
+
+    const byVehicle = {};
+    filtered.forEach(r => {
+      if (!r.vehicle) return;
+      if (!byVehicle[r.vehicle]) byVehicle[r.vehicle] = {};
+      if (!byVehicle[r.vehicle][r.staff]) byVehicle[r.vehicle][r.staff] = { hours: 0, amount: 0 };
+      byVehicle[r.vehicle][r.staff].hours += parseFloat(r.hours) || 0;
+      byVehicle[r.vehicle][r.staff].amount += parseInt(r.amount) || 0;
+    });
+
+    let html = '';
+    Object.entries(byVehicle).forEach(([vehicle, staffMap]) => {
+      const totalAmount = Object.values(staffMap).reduce((s, v) => s + v.amount, 0);
+      const totalHours = Object.values(staffMap).reduce((s, v) => s + v.hours, 0);
+      html += `
+        <div class="summary-card" style="margin-bottom:10px">
+          <div class="summary-header">
+            <div class="vehicle-name">${vehicle}</div>
+            <div>
+              <div class="total-amount">¥${totalAmount.toLocaleString()}</div>
+              <div style="font-size:11px;color:var(--text2);text-align:right">${Math.round(totalHours*10)/10}h</div>
+            </div>
+          </div>`;
+      Object.entries(staffMap).forEach(([staff, data]) => {
+        html += `
+          <div class="staff-row">
+            <div>
+              <div class="staff-name">${staff}</div>
+              <div class="staff-hours">${Math.round(data.hours*10)/10}h</div>
+            </div>
+            <div class="staff-amount">¥${data.amount.toLocaleString()}</div>
+          </div>`;
+      });
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="loading">取得失敗</div>';
+  }
+}
+
+// ============================================================
 // 管理画面
 // ============================================================
 function loadAdminView() {
+  // 管理タブの期間デフォルトをセット
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  document.getElementById('admin-filter-from').value = firstDay;
+  document.getElementById('admin-filter-to').value = lastDay;
+
   renderStaffAdmin();
   renderVehicleAdmin();
   if (gasUrl) {
@@ -849,6 +971,7 @@ function loadAdminView() {
       renderVehicleAdmin();
     });
   }
+  loadAdminSummary();
 }
 
 function renderStaffAdmin() {
