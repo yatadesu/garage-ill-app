@@ -911,9 +911,23 @@ function renderCostSummary(filtered) {
     const { byDate, rate, totalAmount } = data;
 
     let totalHours = 0, overtimeHours = 0;
+    // 1日8時間超え残業
     Object.values(byDate).forEach(dayH => {
       totalHours += dayH;
       if (dayH > 8) overtimeHours += dayH - 8;
+    });
+    // 週40時間超え残業（日曜始まり・1日8h超え分との重複なし）
+    const byWeekRegular = {};
+    Object.entries(byDate).forEach(([dateStr, dayH]) => {
+      const d = new Date(dateStr + 'T00:00:00');
+      const sunday = new Date(d);
+      sunday.setDate(d.getDate() - d.getDay());
+      const weekKey = sunday.toISOString().split('T')[0];
+      if (!byWeekRegular[weekKey]) byWeekRegular[weekKey] = 0;
+      byWeekRegular[weekKey] += Math.min(dayH, 8); // 1日8h超え分は除く
+    });
+    Object.values(byWeekRegular).forEach(weekRegularH => {
+      if (weekRegularH > 40) overtimeHours += weekRegularH - 40;
     });
     const regularHours = Math.round((totalHours - overtimeHours) * 10) / 10;
     overtimeHours = Math.round(overtimeHours * 10) / 10;
