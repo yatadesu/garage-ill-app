@@ -803,10 +803,10 @@ function renderStaffAdmin() {
   container.innerHTML = staffData.map(s => `
     <div class="staff-item">
       <div>
-        <div class="item-name">${s.name}</div>
+        <div class="item-name">${esc(s.name)}</div>
         <div class="item-sub">¥${parseInt(s.rate).toLocaleString()}/h　社保 ${s.insuranceRate > 0 ? s.insuranceRate + '%' : '未設定'}</div>
       </div>
-      <button class="btn btn-secondary btn-small" onclick="openEditStaff('${s.name}', ${s.rate}, ${s.insuranceRate || 0})">変更</button>
+      <button class="btn btn-secondary btn-small" onclick="openEditStaff('${esc(s.name)}', ${s.rate}, ${s.insuranceRate || 0})">変更</button>
     </div>
   `).join('');
 }
@@ -817,8 +817,8 @@ function renderVehicleAdmin() {
   container.innerHTML = vehicleData.map(v => `
     <div class="vehicle-item">
       <div>
-        <div class="item-name">${v.name}</div>
-        <div class="item-sub">${v.status || ''}</div>
+        <div class="item-name">${esc(v.name)}</div>
+        <div class="item-sub">${esc(v.status)}</div>
       </div>
     </div>
   `).join('');
@@ -867,7 +867,7 @@ async function loadAmountSummary() {
       html += `
         <div class="summary-card">
           <div class="summary-header">
-            <div class="vehicle-name">${vehicle}</div>
+            <div class="vehicle-name">${esc(vehicle)}</div>
             <div>
               <div class="total-amount">¥${totalAmount.toLocaleString()}</div>
               <div style="font-size:11px;color:var(--text2);text-align:right">${Math.round(totalHours*10)/10}h</div>
@@ -877,7 +877,7 @@ async function loadAmountSummary() {
         html += `
           <div class="staff-row">
             <div>
-              <div class="staff-name">${staff}</div>
+              <div class="staff-name">${esc(staff)}</div>
               <div class="staff-hours">${Math.round(data.hours*10)/10}h</div>
             </div>
             <div class="staff-amount">¥${data.amount.toLocaleString()}</div>
@@ -979,7 +979,7 @@ function renderCostSummary(filtered) {
     html += `
       <div class="cost-card">
         <div class="cost-header">
-          <div class="cost-name">${staff}</div>
+          <div class="cost-name">${esc(staff)}</div>
           <div class="cost-total">¥${totalCost.toLocaleString()}</div>
         </div>
         <div class="cost-row">
@@ -1053,7 +1053,7 @@ async function loadLogView() {
       const totalHours = logs.reduce((s, r) => s + (parseFloat(r.hours) || 0), 0);
       html += `<div class="log-vehicle-group">
         <div class="log-vehicle-header">
-          <div class="log-vehicle-name">${vehicle}</div>
+          <div class="log-vehicle-name">${esc(vehicle)}</div>
           <div class="log-vehicle-total">合計 ${Math.round(totalHours*10)/10}h</div>
         </div>`;
       logs.forEach(r => {
@@ -1064,10 +1064,10 @@ async function loadLogView() {
           : '';
         html += `
           <div class="log-item">
-            <div><div class="log-date">${date}</div><div class="log-staff">${r.staff || ''}</div></div>
-            <div style="font-size:11px;color:var(--text2)">${r.category || ''}</div>
-            <div style="font-size:11px;color:var(--text2)">${timeDisp}</div>
-            <div class="log-content">${r.content || ''}</div>
+            <div><div class="log-date">${esc(date)}</div><div class="log-staff">${esc(r.staff)}</div></div>
+            <div style="font-size:11px;color:var(--text2)">${esc(r.category)}</div>
+            <div style="font-size:11px;color:var(--text2)">${esc(timeDisp)}</div>
+            <div class="log-content">${esc(r.content)}</div>
             <div class="log-hours">${Math.round((parseFloat(r.hours)||0)*10)/10}h</div>
             <button class="btn-edit" onclick="openEditRecord('${recJson}')" title="編集">✎</button>
             <button class="btn-delete" onclick="deleteRecord(${r.rowId})" title="削除">✕</button>
@@ -1236,6 +1236,10 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
 });
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function showToast(msg, isError = false) {
   const el = document.getElementById('toast');

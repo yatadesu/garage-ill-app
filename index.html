@@ -506,21 +506,6 @@ async function submitRecord() {
   }
 }
 
-async function deleteRecord(rowId) {
-  if (!confirm('このレコードを削除しますか？')) return;
-  try {
-    const res = await gasPost({ action: 'deleteRecord', rowId });
-    if (res && res.success) {
-      showToast('削除しました');
-      loadSummary();
-    } else {
-      showToast('削除失敗: ' + (res?.message || '不明'), true);
-    }
-  } catch (e) {
-    showToast('通信エラー', true);
-  }
-}
-
 async function loadSummary() {
   const from = document.getElementById('filter-from').value;
   const to = document.getElementById('filter-to').value;
@@ -580,24 +565,20 @@ function renderLogView(records) {
     const groupId = 'vg-' + idx;
     html += `<div class="log-vehicle-group">
       <div class="log-vehicle-header" onclick="toggleGroup('${groupId}', this)">
-        <div class="log-vehicle-name"><span class="log-toggle">▼</span>${vehicle}</div>
+        <div class="log-vehicle-name"><span class="log-toggle">▼</span>${esc(vehicle)}</div>
         <div class="log-vehicle-total">合計 ${Math.round(totalHours*10)/10}h</div>
       </div>
       <div class="log-vehicle-items" id="${groupId}">`;
     logs.forEach(r => {
       const recDate = r.date.toString().substring(0, 10);
       const dateDisp = recDate.replace(/-/g, '/').substring(2);
-      const isToday = recDate === today;
-      const deleteBtn = isToday
-        ? `<button class="btn-delete" onclick="event.stopPropagation();deleteRecord(${r.rowId})" title="削除">✕</button>`
-        : `<div></div>`;
       html += `
         <div class="log-item">
-          <div><div class="log-date">${dateDisp}</div><div class="log-staff">${r.staff || ''}</div></div>
-          <div style="font-size:11px;color:var(--text2)">${r.category || ''}</div>
-          <div class="log-content">${r.content || ''}</div>
+          <div><div class="log-date">${esc(dateDisp)}</div><div class="log-staff">${esc(r.staff)}</div></div>
+          <div style="font-size:11px;color:var(--text2)">${esc(r.category)}</div>
+          <div class="log-content">${esc(r.content)}</div>
           <div class="log-hours">${Math.round((parseFloat(r.hours)||0)*10)/10}h</div>
-          ${deleteBtn}
+          <div></div>
         </div>`;
     });
     html += '</div></div>';
@@ -610,6 +591,10 @@ function toggleGroup(id, header) {
   const items = document.getElementById(id);
   items.classList.toggle('collapsed');
   header.classList.toggle('collapsed');
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function showToast(msg, isError = false) {
