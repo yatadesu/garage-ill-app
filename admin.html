@@ -251,9 +251,63 @@
     #toast.show { opacity: 1; }
 
     .loading { text-align: center; color: var(--text2); padding: 32px; font-size: 14px; }
+
+    /* パスワード画面 */
+    #pw-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+    #pw-screen h2 { color: var(--accent); font-size: 20px; margin-bottom: 8px; }
+    #pw-screen p { color: var(--text2); font-size: 13px; margin-bottom: 24px; }
+    #pw-screen input {
+      width: 100%;
+      max-width: 280px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 24px;
+      padding: 12px;
+      text-align: center;
+      letter-spacing: 6px;
+      margin-bottom: 12px;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    #pw-screen input:focus { outline: none; border-color: var(--accent); }
+    #pw-error { color: var(--danger); font-size: 13px; margin-bottom: 12px; min-height: 18px; }
+    #pw-screen .pw-btn {
+      width: 100%;
+      max-width: 280px;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #000;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
+
+<!-- パスワード画面 -->
+<div id="pw-screen">
+  <h2>GARAGE ILL</h2>
+  <p>管理画面 — パスワードを入力してください</p>
+  <input type="password" id="pw-input" inputmode="numeric" placeholder="••••"
+    onkeydown="if(event.key==='Enter') checkPassword()">
+  <div id="pw-error"></div>
+  <button class="pw-btn" onclick="checkPassword()">ログイン</button>
+</div>
 
 <header>
   <h1>GARAGE ILL</h1>
@@ -311,6 +365,15 @@
     <div class="card-title">車両 / 案件管理</div>
     <div id="vehicle-list"><div class="loading">読込中...</div></div>
     <button class="btn btn-secondary btn-mt btn-small" onclick="openModal('modal-add-vehicle')">＋ 車両追加</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">パスワード変更</div>
+    <label>新しいパスワード</label>
+    <input type="password" id="new-pw" placeholder="新しいパスワード" inputmode="numeric">
+    <label>確認（もう一度）</label>
+    <input type="password" id="new-pw-confirm" placeholder="もう一度入力" inputmode="numeric">
+    <button class="btn btn-secondary btn-mt" onclick="changePassword()">パスワードを変更</button>
   </div>
 </div>
 
@@ -374,6 +437,29 @@
 const gasUrl = 'https://script.google.com/macros/s/AKfycbyQANT0hyFHIygNL8gkTR9tRi4hQRofjkKuQrNTLnAX7PcFJGAqPkhkc26h7yXmFu1lcA/exec';
 let staffData = JSON.parse(localStorage.getItem('staffData') || '[]');
 let vehicleData = JSON.parse(localStorage.getItem('vehicleData') || '[]');
+const DEFAULT_PASSWORD = '0000';
+
+function checkPassword() {
+  const saved = localStorage.getItem('adminPassword') || DEFAULT_PASSWORD;
+  const input = document.getElementById('pw-input').value;
+  if (input === saved) {
+    document.getElementById('pw-screen').style.display = 'none';
+  } else {
+    document.getElementById('pw-error').textContent = 'パスワードが違います';
+    document.getElementById('pw-input').value = '';
+  }
+}
+
+function changePassword() {
+  const np = document.getElementById('new-pw').value;
+  const nc = document.getElementById('new-pw-confirm').value;
+  if (!np) { showToast('パスワードを入力してください', true); return; }
+  if (np !== nc) { showToast('パスワードが一致しません', true); return; }
+  localStorage.setItem('adminPassword', np);
+  document.getElementById('new-pw').value = '';
+  document.getElementById('new-pw-confirm').value = '';
+  showToast('パスワードを変更しました');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
