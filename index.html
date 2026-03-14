@@ -352,7 +352,6 @@
     <h1>GARAGE ILL</h1>
     <div class="subtitle">作業管理システム</div>
   </div>
-  <button class="settings-btn" onclick="openSettings()">⚙ 設定</button>
 </header>
 
 <!-- タブコンテンツ -->
@@ -466,15 +465,17 @@
   </button>
 </nav>
 
-<!-- 設定モーダル -->
-<div id="modal-settings" class="modal-overlay">
+<!-- PINモーダル -->
+<div id="modal-pin" class="modal-overlay">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-settings')">×</button>
-    <h3>GAS URL設定</h3>
-    <label>Google Apps Script URL</label>
-    <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/...">
-    <div id="url-status" class="url-status" style="display:none"></div>
-    <button class="btn btn-primary btn-mt" onclick="saveGasUrl()">保存して接続テスト</button>
+    <button class="modal-close" onclick="closeModal('modal-pin')">×</button>
+    <h3>管理者PIN</h3>
+    <label>4桁のPINを入力</label>
+    <input type="password" id="pin-input" maxlength="4" inputmode="numeric" placeholder="••••"
+      onkeydown="if(event.key==='Enter') checkPin()"
+      style="font-size:24px;letter-spacing:8px;text-align:center">
+    <div id="pin-error" style="display:none;color:var(--danger);font-size:13px;margin-top:8px">PINが違います</div>
+    <button class="btn btn-primary btn-mt" onclick="checkPin()">確認</button>
   </div>
 </div>
 
@@ -529,11 +530,13 @@
 // ============================================================
 // 状態管理
 // ============================================================
-let gasUrl = localStorage.getItem('gasUrl') || '';
+const gasUrl = 'https://script.google.com/macros/s/AKfycbyQANT0hyFHIygNL8gkTR9tRi4hQRofjkKuQrNTLnAX7PcFJGAqPkhkc26h7yXmFu1lcA/exec';
 let staffData = JSON.parse(localStorage.getItem('staffData') || '[]');
 let vehicleData = JSON.parse(localStorage.getItem('vehicleData') || '[]');
 let allRecords = [];
 let selectedVehicle = 'all';
+let adminUnlocked = false;
+const ADMIN_PIN = '1853';
 
 // ============================================================
 // 初期化
@@ -555,15 +558,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(id).addEventListener('change', calcPreview);
   });
 
-  // GAS URLが設定済みならデータ取得
-  if (gasUrl) {
-    document.getElementById('gas-url-input').value = gasUrl;
-    loadMasterData();
-  } else {
-    // ローカルキャッシュがあれば使う
-    if (staffData.length > 0) renderStaffSelect();
-    if (vehicleData.length > 0) renderVehicleSelect();
-  }
+  // 起動時にマスタデータ取得
+  loadMasterData();
 
   calcPreview();
 });
@@ -572,12 +568,36 @@ document.addEventListener('DOMContentLoaded', () => {
 // タブ切替
 // ============================================================
 function switchTab(tab, btn) {
+  if (tab === 'admin' && !adminUnlocked) {
+    openModal('modal-pin');
+    return;
+  }
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   btn.classList.add('active');
 
   if (tab === 'admin') loadAdminView();
+}
+
+function checkPin() {
+  const input = document.getElementById('pin-input').value;
+  if (input === ADMIN_PIN) {
+    adminUnlocked = true;
+    closeModal('modal-pin');
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-error').style.display = 'none';
+    // 管理タブを開く
+    const adminBtn = document.querySelector('nav button:nth-child(3)');
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-admin').classList.add('active');
+    adminBtn.classList.add('active');
+    loadAdminView();
+  } else {
+    document.getElementById('pin-error').style.display = 'block';
+    document.getElementById('pin-input').value = '';
+  }
 }
 
 // ============================================================
@@ -870,38 +890,6 @@ function renderVehicleAdmin() {
 // ============================================================
 // モーダル操作
 // ============================================================
-function openSettings() {
-  document.getElementById('gas-url-input').value = gasUrl;
-  openModal('modal-settings');
-}
-
-async function saveGasUrl() {
-  const url = document.getElementById('gas-url-input').value.trim();
-  if (!url) { showToast('URLを入力してください', true); return; }
-
-  gasUrl = url;
-  localStorage.setItem('gasUrl', gasUrl);
-
-  const statusEl = document.getElementById('url-status');
-  statusEl.style.display = 'block';
-  statusEl.textContent = '接続テスト中...';
-  statusEl.className = 'url-status';
-
-  try {
-    const res = await gasGet({ action: 'getStaff' });
-    if (res && Array.isArray(res)) {
-      statusEl.textContent = '✓ 接続成功！スタッフ ' + res.length + '名を取得しました';
-      statusEl.className = 'url-status ok';
-      await loadMasterData();
-      showToast('接続成功！');
-    } else {
-      throw new Error();
-    }
-  } catch (e) {
-    statusEl.textContent = '✗ 接続失敗。URLを確認してください';
-    statusEl.className = 'url-status ng';
-  }
-}
 
 function openAddStaff() { openModal('modal-add-staff'); }
 function openAddVehicle() { openModal('modal-add-vehicle'); }
