@@ -200,7 +200,7 @@
       border-top: none;
       padding: 10px 14px;
       display: grid;
-      grid-template-columns: 70px 50px 1fr 45px;
+      grid-template-columns: 70px 50px 1fr 45px 36px 36px;
       gap: 6px;
       align-items: center;
       font-size: 13px;
@@ -210,6 +210,34 @@
     .log-staff { font-weight: 600; font-size: 12px; }
     .log-content { color: var(--text); }
     .log-hours { text-align: right; font-weight: 700; color: var(--accent); }
+    .btn-delete {
+      background: none;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 6px;
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .btn-edit {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      border-radius: 6px;
+      font-size: 14px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
 
     .modal-overlay {
       display: none;
@@ -468,6 +496,43 @@
   </div>
 </div>
 
+<!-- レコード編集モーダル -->
+<div id="modal-edit-record" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-edit-record')">×</button>
+    <h3>レコード編集</h3>
+    <input type="hidden" id="edit-record-rowid">
+    <label>日付</label>
+    <input type="date" id="edit-rec-date">
+    <label>スタッフ</label>
+    <select id="edit-rec-staff"></select>
+    <label>車両 / 案件</label>
+    <select id="edit-rec-vehicle"></select>
+    <label>作業区分</label>
+    <select id="edit-rec-category">
+      <option value="鈑金">鈑金</option>
+      <option value="塗装">塗装</option>
+      <option value="整備">整備</option>
+      <option value="FRP">FRP</option>
+      <option value="溶接">溶接</option>
+      <option value="分解・組付">分解・組付</option>
+      <option value="部品探し">部品探し</option>
+      <option value="その他">その他</option>
+    </select>
+    <label>作業内容</label>
+    <input type="text" id="edit-rec-content">
+    <label>時間（開始 / 終了 / 休憩分）</label>
+    <div class="time-row">
+      <input type="time" id="edit-rec-start">
+      <input type="time" id="edit-rec-end">
+      <input type="number" id="edit-rec-break" min="0" max="480">
+    </div>
+    <label>メモ（任意）</label>
+    <textarea id="edit-rec-memo"></textarea>
+    <button class="btn btn-primary btn-mt" onclick="saveEditRecord()">保存</button>
+  </div>
+</div>
+
 <!-- 車両追加モーダル -->
 <div id="modal-add-vehicle" class="modal-overlay">
   <div class="modal">
@@ -663,6 +728,8 @@ async function submitRecord() {
       showToast('送信しました！');
       document.getElementById('inp-content').value = '';
       document.getElementById('inp-memo').value = '';
+    } else if (res && res.duplicate) {
+      showToast('この日付・開始時間のデータは既に送信済みです', true);
     } else {
       showToast('送信失敗: ' + (res?.message || '不明'), true);
     }
@@ -818,12 +885,15 @@ async function loadLogView() {
         </div>`;
       logs.forEach(r => {
         const date = r.date.toString().substring(0, 10).replace(/-/g, '/').substring(2);
+        const recJson = encodeURIComponent(JSON.stringify(r));
         html += `
           <div class="log-item">
             <div><div class="log-date">${date}</div><div class="log-staff">${r.staff || ''}</div></div>
             <div style="font-size:11px;color:var(--text2)">${r.category || ''}</div>
             <div class="log-content">${r.content || ''}</div>
             <div class="log-hours">${Math.round((parseFloat(r.hours)||0)*10)/10}h</div>
+            <button class="btn-edit" onclick="openEditRecord('${recJson}')" title="編集">✎</button>
+            <button class="btn-delete" onclick="deleteRecord(${r.rowId})" title="削除">✕</button>
           </div>`;
       });
       html += '</div>';
@@ -831,6 +901,94 @@ async function loadLogView() {
     document.getElementById('log-content').innerHTML = html;
   } catch (e) {
     document.getElementById('log-content').innerHTML = '<div class="loading">取得失敗</div>';
+  }
+}
+
+async function deleteRecord(rowId) {
+  if (!confirm('このレコードを削除しますか？')) return;
+  try {
+    const res = await gasPost({ action: 'deleteRecord', rowId });
+    if (res && res.success) {
+      showToast('削除しました');
+      loadLogView();
+      loadAmountSummary();
+    } else {
+      showToast('削除失敗: ' + (res?.message || '不明'), true);
+    }
+  } catch (e) {
+    showToast('通信エラー', true);
+  }
+}
+
+function openEditRecord(recJson) {
+  const r = JSON.parse(decodeURIComponent(recJson));
+  document.getElementById('edit-record-rowid').value = r.rowId;
+  document.getElementById('edit-rec-date').value = r.date ? r.date.toString().substring(0, 10) : '';
+  document.getElementById('edit-rec-start').value = r.startTime || '';
+  document.getElementById('edit-rec-end').value = r.endTime || '';
+  document.getElementById('edit-rec-break').value = r.breakMinutes || 0;
+  document.getElementById('edit-rec-content').value = r.content || '';
+  document.getElementById('edit-rec-memo').value = r.memo || '';
+
+  // スタッフ選択肢を設定
+  const staffSel = document.getElementById('edit-rec-staff');
+  staffSel.innerHTML = '';
+  staffData.forEach(s => {
+    staffSel.innerHTML += `<option value="${s.name}" data-rate="${s.rate}">${s.name}</option>`;
+  });
+  staffSel.value = r.staff || '';
+
+  // 車両選択肢を設定
+  const vehicleSel = document.getElementById('edit-rec-vehicle');
+  vehicleSel.innerHTML = '';
+  vehicleData.forEach(v => {
+    vehicleSel.innerHTML += `<option value="${v.name}">${v.name}</option>`;
+  });
+  vehicleSel.value = r.vehicle || '';
+
+  document.getElementById('edit-rec-category').value = r.category || 'その他';
+  openModal('modal-edit-record');
+}
+
+async function saveEditRecord() {
+  const rowId = parseInt(document.getElementById('edit-record-rowid').value);
+  const date = document.getElementById('edit-rec-date').value;
+  const staffSel = document.getElementById('edit-rec-staff');
+  const staff = staffSel.value;
+  const rate = parseInt(staffSel.options[staffSel.selectedIndex]?.dataset?.rate) || 0;
+  const vehicle = document.getElementById('edit-rec-vehicle').value;
+  const category = document.getElementById('edit-rec-category').value;
+  const content = document.getElementById('edit-rec-content').value.trim();
+  const startTime = document.getElementById('edit-rec-start').value;
+  const endTime = document.getElementById('edit-rec-end').value;
+  const breakMinutes = parseInt(document.getElementById('edit-rec-break').value) || 0;
+  const memo = document.getElementById('edit-rec-memo').value.trim();
+
+  if (!date || !staff || !vehicle || !content) {
+    showToast('日付・スタッフ・車両・作業内容は必須です', true);
+    return;
+  }
+
+  // 作業時間を再計算
+  const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  let startMin = toMin(startTime), endMin = toMin(endTime);
+  if (endMin < startMin) endMin += 24 * 60;
+  const workMin = Math.max(0, endMin - startMin - breakMinutes);
+  const hours = Math.round(workMin / 60 * 10) / 10;
+  const amount = Math.round(hours * rate);
+
+  try {
+    const res = await gasPost({ action: 'updateRecord', rowId, date, staff, vehicle, category, content, startTime, endTime, breakMinutes, hours, rate, amount, memo });
+    if (res && res.success) {
+      showToast('更新しました');
+      closeModal('modal-edit-record');
+      loadLogView();
+      loadAmountSummary();
+    } else {
+      showToast('更新失敗: ' + (res?.message || '不明'), true);
+    }
+  } catch (e) {
+    showToast('通信エラー', true);
   }
 }
 

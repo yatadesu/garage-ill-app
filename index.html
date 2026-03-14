@@ -167,7 +167,7 @@
       border-top: none;
       padding: 10px 14px;
       display: grid;
-      grid-template-columns: 70px 50px 1fr 45px;
+      grid-template-columns: 70px 50px 1fr 45px 36px;
       gap: 6px;
       align-items: center;
       font-size: 13px;
@@ -177,6 +177,20 @@
     .log-staff { font-weight: 600; font-size: 12px; }
     .log-content { color: var(--text); }
     .log-hours { text-align: right; font-weight: 700; color: var(--accent); }
+    .btn-delete {
+      background: none;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 6px;
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
 
     #toast {
       position: fixed;
@@ -472,6 +486,8 @@ async function submitRecord() {
       showToast('送信しました！');
       document.getElementById('inp-content').value = '';
       document.getElementById('inp-memo').value = '';
+    } else if (res && res.duplicate) {
+      showToast('この日付・開始時間のデータは既に送信済みです', true);
     } else {
       showToast('送信失敗: ' + (res?.message || '不明'), true);
     }
@@ -480,6 +496,21 @@ async function submitRecord() {
   } finally {
     btn.textContent = '日報を送信';
     btn.disabled = false;
+  }
+}
+
+async function deleteRecord(rowId) {
+  if (!confirm('このレコードを削除しますか？')) return;
+  try {
+    const res = await gasPost({ action: 'deleteRecord', rowId });
+    if (res && res.success) {
+      showToast('削除しました');
+      loadSummary();
+    } else {
+      showToast('削除失敗: ' + (res?.message || '不明'), true);
+    }
+  } catch (e) {
+    showToast('通信エラー', true);
   }
 }
 
@@ -528,6 +559,7 @@ function renderLogView(records) {
     return;
   }
 
+  const today = new Date().toISOString().split('T')[0];
   const byVehicle = {};
   records.forEach(r => {
     const v = r.vehicle || '未設定';
@@ -544,13 +576,19 @@ function renderLogView(records) {
         <div class="log-vehicle-total">合計 ${Math.round(totalHours*10)/10}h</div>
       </div>`;
     logs.forEach(r => {
-      const date = r.date.toString().substring(0, 10).replace(/-/g, '/').substring(2);
+      const recDate = r.date.toString().substring(0, 10);
+      const dateDisp = recDate.replace(/-/g, '/').substring(2);
+      const isToday = recDate === today;
+      const deleteBtn = isToday
+        ? `<button class="btn-delete" onclick="deleteRecord(${r.rowId})" title="削除">✕</button>`
+        : `<div></div>`;
       html += `
         <div class="log-item">
-          <div><div class="log-date">${date}</div><div class="log-staff">${r.staff || ''}</div></div>
+          <div><div class="log-date">${dateDisp}</div><div class="log-staff">${r.staff || ''}</div></div>
           <div style="font-size:11px;color:var(--text2)">${r.category || ''}</div>
           <div class="log-content">${r.content || ''}</div>
           <div class="log-hours">${Math.round((parseFloat(r.hours)||0)*10)/10}h</div>
+          ${deleteBtn}
         </div>`;
     });
     html += '</div>';
