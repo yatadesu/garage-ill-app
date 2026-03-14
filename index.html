@@ -748,7 +748,6 @@ function calcPreview() {
   const amount = Math.round(hours * rate);
 
   document.getElementById('calc-hours').textContent = hours + 'h';
-  document.getElementById('calc-amount').textContent = rate > 0 ? '¥' + amount.toLocaleString() : '—';
 
   return { hours, amount, rate };
 }
