@@ -328,12 +328,14 @@ let staffData = JSON.parse(localStorage.getItem('staffData') || '[]');
 let vehicleData = JSON.parse(localStorage.getItem('vehicleData') || '[]');
 
 document.addEventListener('DOMContentLoaded', () => {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   document.getElementById('inp-date').value = today;
 
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const firstDay = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
+  const lastDayDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const lastDay = `${lastDayDate.getFullYear()}-${pad(lastDayDate.getMonth()+1)}-${pad(lastDayDate.getDate())}`;
   document.getElementById('filter-from').value = firstDay;
   document.getElementById('filter-to').value = lastDay;
 
@@ -385,7 +387,7 @@ async function loadMasterData() {
       renderVehicleSelect();
     }
   } catch (e) {
-    // キャッシュがあればそのまま使う（エラートースト不要）
+    // キャッシュがあればそのまま使う
     if (staffData.length === 0 && vehicleData.length === 0) {
       showToast('データ取得失敗。通信状態を確認してください', true);
     }
@@ -506,6 +508,7 @@ async function submitRecord() {
   }
 }
 
+// [P0-3] from/to パラメータをGASに渡してサーバーサイドでフィルタリング
 async function loadSummary() {
   const from = document.getElementById('filter-from').value;
   const to = document.getElementById('filter-to').value;
@@ -515,17 +518,13 @@ async function loadSummary() {
   document.getElementById('summary-content').innerHTML = '<div class="loading">読込中...</div>';
 
   try {
-    const records = await gasGet({ action: 'getRecords' });
+    const records = await gasGet({ action: 'getRecords', from, to });
     if (!records || !Array.isArray(records)) {
       document.getElementById('summary-content').innerHTML = '<div class="loading">データ取得失敗</div>';
       return;
     }
 
     const filtered = records.filter(r => {
-      if (!r.date) return false;
-      const d = r.date.toString().substring(0, 10);
-      if (from && d < from) return false;
-      if (to && d > to) return false;
       if (vehicleFilter && r.vehicle !== vehicleFilter) return false;
       if (staffFilter && r.staff !== staffFilter) return false;
       return true;
@@ -551,7 +550,6 @@ function renderLogView(records) {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
   const byVehicle = {};
   records.forEach(r => {
     const v = r.vehicle || '未設定';
@@ -594,7 +592,7 @@ function toggleGroup(id, header) {
 }
 
 function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function showToast(msg, isError = false) {
