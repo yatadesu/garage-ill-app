@@ -862,7 +862,7 @@ async function loadAmountSummary() {
   document.getElementById('cost-summary-content').innerHTML = '<div class="loading">読込中...</div>';
 
   try {
-    const records = await gasGet({ action: 'getRecords', from, to });
+    const records = await gasGet({ action: 'getRecords', from, to, adminToken: currentAdminToken || '' });
     if (!records || !Array.isArray(records)) {
       container.innerHTML = '<div class="loading">取得失敗</div>';
       document.getElementById('cost-summary-content').innerHTML = '<div class="loading">取得失敗</div>';
@@ -1039,7 +1039,7 @@ async function loadLogView() {
   document.getElementById('log-content').innerHTML = '<div class="loading">読込中...</div>';
 
   try {
-    const records = await gasGet({ action: 'getRecords', from, to });
+    const records = await gasGet({ action: 'getRecords', from, to, adminToken: currentAdminToken || '' });
     if (!records || !Array.isArray(records)) {
       document.getElementById('log-content').innerHTML = '<div class="loading">取得失敗</div>';
       return;
