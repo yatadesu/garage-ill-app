@@ -522,12 +522,8 @@ function calcPreview() {
   const start = document.getElementById('inp-start').value;
   const end = document.getElementById('inp-end').value;
   const breakMin = parseInt(document.getElementById('inp-break').value) || 0;
-  const staffSel = document.getElementById('inp-staff');
-  const selectedName = staffSel.value;
-  const selectedStaff = staffData.find(s => s.name === selectedName);
-  const rate = selectedStaff ? parseInt(selectedStaff.rate) || 0 : 0;
 
-  if (!start || !end) return { hours: 0, amount: 0, rate };
+  if (!start || !end) return { hours: 0 };
 
   let startMin = timeToMin(start);
   let endMin = timeToMin(end);
@@ -535,10 +531,9 @@ function calcPreview() {
 
   const workMin = Math.max(0, endMin - startMin - breakMin);
   const hours = Math.round(workMin / 60 * 10) / 10;
-  const amount = Math.round(hours * rate);
 
   document.getElementById('calc-hours').textContent = hours + 'h';
-  return { hours, amount, rate };
+  return { hours };
 }
 
 function timeToMin(t) {
@@ -562,9 +557,6 @@ async function submitRecord() {
     return;
   }
 
-  const staffSel = document.getElementById('inp-staff');
-  const selectedStaffData = staffData.find(s => s.name === staffSel.value);
-  const rate = selectedStaffData ? parseInt(selectedStaffData.rate) || 0 : 0;
   const calc = calcPreview();
 
   const btn = document.querySelector('.btn-primary');
@@ -577,8 +569,6 @@ async function submitRecord() {
       date, staff, vehicle, category, content,
       startTime, endTime, breakMinutes,
       hours: calc.hours,
-      rate,
-      amount: calc.amount,
       memo
     });
     if (res && res.success) {
@@ -729,8 +719,6 @@ async function saveEditRecord() {
   const date = document.getElementById('edit-rec-date').value;
   const staffSel = document.getElementById('edit-rec-staff');
   const staff = staffSel.value;
-  const editStaffData = staffData.find(s => s.name === staff);
-  const rate = editStaffData ? parseInt(editStaffData.rate) || 0 : 0;
   const vehicle = document.getElementById('edit-rec-vehicle').value;
   const category = document.getElementById('edit-rec-category').value;
   const content = document.getElementById('edit-rec-content').value.trim();
@@ -749,7 +737,6 @@ async function saveEditRecord() {
   if (endMin < startMin) endMin += 24 * 60;
   const workMin = Math.max(0, endMin - startMin - breakMinutes);
   const hours = Math.round(workMin / 60 * 10) / 10;
-  const amount = Math.round(hours * rate);
 
   try {
     const res = await gasPost({
@@ -757,7 +744,7 @@ async function saveEditRecord() {
       id: recordId,
       verifyStaff, verifyDate, verifyStart,
       date, staff, vehicle, category, content,
-      startTime, endTime, breakMinutes, hours, rate, amount, memo
+      startTime, endTime, breakMinutes, hours, memo
     });
     if (res && res.success) {
       showToast('更新しました');
